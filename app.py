@@ -1,12 +1,18 @@
 from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.v3.webhook import WebhookHandler
+from linebot.v3.messaging import MessagingApi, Configuration, ReplyMessageRequest
+from linebot.v3.models import TextMessage, MessageEvent
 import os
 
 app = Flask(__name__)
 
-line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
-handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+# 初始化 LINE SDK 設定
+channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+channel_secret = os.getenv("LINE_CHANNEL_SECRET")
+
+configuration = Configuration(access_token=channel_access_token)
+handler = WebhookHandler(channel_secret)
+messaging_api = MessagingApi(configuration)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -15,16 +21,18 @@ def callback():
 
     try:
         handler.handle(body, signature)
-    except:
+    except Exception as e:
+        print(f"Webhook handle error: {e}")
         abort(400)
     return 'OK'
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=event.message.text)
+    reply = ReplyMessageRequest(
+        reply_token=event.reply_token,
+        messages=[TextMessage(text=event.message.text)]
     )
+    messaging_api.reply_message(reply)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
